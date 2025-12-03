@@ -33,7 +33,7 @@ else:
     genai.configure(api_key=GEMINI_API_KEY)
 
 # Use the latest fast model
-model = genai.GenerativeModel('gemini-1.5-flash')
+model = genai.GenerativeModel('gemini-1.5-flash-001')
 
 # --- Data Models (Strictly matching New Problem Statement) ---
 
