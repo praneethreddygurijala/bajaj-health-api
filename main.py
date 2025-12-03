@@ -4,7 +4,6 @@ from typing import List, Optional, Any
 import google.generativeai as genai
 import requests
 from PIL import Image
-import pytesseract
 import io
 import os
 import json
@@ -12,6 +11,14 @@ import re
 import cv2
 import numpy as np
 from dotenv import load_dotenv
+
+# Try importing pytesseract, but don't fail if missing
+try:
+    import pytesseract
+    TESSERACT_AVAILABLE = True
+except:
+    TESSERACT_AVAILABLE = False
+    print("⚠️ Tesseract not available - using Gemini Vision only")
 
 # 1. Load Environment Variables
 load_dotenv()
@@ -26,7 +33,7 @@ else:
     genai.configure(api_key=GEMINI_API_KEY)
 
 # Use the latest fast model
-model = genai.GenerativeModel('gemini-2.0-flash')
+model = genai.GenerativeModel('gemini-2.0-flash-exp')
 
 # --- Data Models (Strictly matching New Problem Statement) ---
 
@@ -96,9 +103,9 @@ def preprocess_image(image_bytes: bytes) -> tuple:
 
 def perform_ocr(image: Image.Image) -> str:
     """Tesseract OCR Wrapper (Optional Helper)"""
+    if not TESSERACT_AVAILABLE:
+        return ""
     try:
-        # Windows Path Fix (Uncomment if needed)
-        # pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
         return pytesseract.image_to_string(image)
     except:
         return "" 
@@ -111,7 +118,7 @@ def analyze_with_gemini(content_part: Any, mime_type: str, ocr_context: str = ""
     You are an expert medical billing auditor. Extract structured data from this document.
     
     CONTEXT:
-    {ocr_context}
+    {ocr_context if ocr_context else "No OCR context available - analyze image directly"}
 
     ### CRITICAL RULES:
     1. **Page Classification:** For each page, determine `page_type`. It MUST be exactly one of: "Bill Detail", "Final Bill", or "Pharmacy".
@@ -203,6 +210,16 @@ def analyze_with_gemini(content_part: Any, mime_type: str, ocr_context: str = ""
         raise HTTPException(status_code=500, detail=f"Gemini Error: {str(e)}")
 
 # --- API Endpoints ---
+
+@app.get("/")
+async def root():
+    """Health check endpoint"""
+    return {
+        "status": "running",
+        "service": "Bajaj Health Datathon API",
+        "version": "4.0.0",
+        "tesseract_available": TESSERACT_AVAILABLE
+    }
 
 @app.post("/extract-bill-data", response_model=BillExtractionResponse)
 async def extract_bill_data(request: DocumentRequest):
